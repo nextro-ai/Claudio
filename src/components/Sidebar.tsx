@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Proyecto } from '../types'
 import { COLORES_PROYECTO, nuevoId } from '../types'
 
@@ -9,6 +9,8 @@ interface Props {
     onSeleccionar: (id: string) => void
     onCrear: (proyecto: Proyecto) => void
     onEliminar: (id: string) => void
+    onExportar: () => void
+    onImportar: (archivo: File) => void
 }
 
 export default function Sidebar({
@@ -18,9 +20,12 @@ export default function Sidebar({
     onSeleccionar,
     onCrear,
     onEliminar,
+    onExportar,
+    onImportar,
 }: Props) {
     const [creando, setCreando] = useState(false)
     const [nombre, setNombre] = useState('')
+    const inputArchivo = useRef<HTMLInputElement>(null)
 
     function crearProyecto() {
         const limpio = nombre.trim()
@@ -36,7 +41,7 @@ export default function Sidebar({
     }
 
     return (
-        <aside className="flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-white">
+        <aside className="flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-2 px-5 py-5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-lg font-extrabold text-white">
                     C
@@ -53,7 +58,7 @@ export default function Sidebar({
                 </span>
                 <button
                     onClick={() => setCreando(true)}
-                    className="rounded-lg px-2 py-0.5 text-lg leading-none text-indigo-600 hover:bg-indigo-50"
+                    className="rounded-lg px-2 py-0.5 text-lg leading-none text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-slate-800"
                     title="Nuevo proyecto"
                 >
                     +
@@ -62,7 +67,7 @@ export default function Sidebar({
 
             <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
                 {creando && (
-                    <div className="mb-2 rounded-xl border border-indigo-200 bg-indigo-50 p-2">
+                    <div className="animar-entrada mb-2 rounded-xl border border-indigo-200 bg-indigo-50 p-2 dark:border-indigo-800 dark:bg-slate-800">
                         <input
                             autoFocus
                             value={nombre}
@@ -72,7 +77,7 @@ export default function Sidebar({
                                 if (e.key === 'Escape') setCreando(false)
                             }}
                             placeholder="Nombre del proyecto…"
-                            className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-indigo-400 dark:border-slate-600 dark:bg-slate-900"
                         />
                         <div className="mt-2 flex gap-2">
                             <button
@@ -83,7 +88,7 @@ export default function Sidebar({
                             </button>
                             <button
                                 onClick={() => setCreando(false)}
-                                className="rounded-lg px-3 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                                className="rounded-lg px-3 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                             >
                                 Cancelar
                             </button>
@@ -105,8 +110,8 @@ export default function Sidebar({
                         onClick={() => onSeleccionar(p.id)}
                         className={`group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                             p.id === proyectoActivoId
-                                ? 'bg-indigo-50 text-indigo-700'
-                                : 'text-slate-600 hover:bg-slate-50'
+                                ? 'bg-indigo-50 text-indigo-700 dark:bg-slate-800 dark:text-indigo-300'
+                                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60'
                         }`}
                     >
                         <span
@@ -122,7 +127,7 @@ export default function Sidebar({
                                     onEliminar(p.id)
                                 }
                             }}
-                            className="hidden rounded-md px-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 group-hover:block"
+                            className="rounded-md px-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950 md:hidden md:group-hover:block"
                             title="Eliminar proyecto"
                         >
                             ✕
@@ -131,9 +136,39 @@ export default function Sidebar({
                 ))}
             </nav>
 
-            <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-400">
-                Los datos se guardan en este navegador.
-            </p>
+            <div className="space-y-2 border-t border-slate-100 px-5 py-3 dark:border-slate-800">
+                <div className="flex gap-2">
+                    <button
+                        onClick={onExportar}
+                        className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                        title="Descarga tus datos en un archivo JSON"
+                    >
+                        ⬇ Exportar
+                    </button>
+                    <button
+                        onClick={() => inputArchivo.current?.click()}
+                        className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                        title="Carga un archivo exportado desde otro dispositivo"
+                    >
+                        ⬆ Importar
+                    </button>
+                    <input
+                        ref={inputArchivo}
+                        type="file"
+                        accept="application/json"
+                        className="hidden"
+                        onChange={(e) => {
+                            const archivo = e.target.files?.[0]
+                            if (archivo) onImportar(archivo)
+                            e.target.value = ''
+                        }}
+                    />
+                </div>
+                <p className="text-xs text-slate-400">
+                    Los datos se guardan en este navegador. Usa exportar/importar para pasarlos a
+                    otro dispositivo.
+                </p>
+            </div>
         </aside>
     )
 }

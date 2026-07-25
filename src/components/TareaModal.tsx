@@ -10,6 +10,9 @@ interface Props {
     onCerrar: () => void
 }
 
+const CAMPO =
+    'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800'
+
 export default function TareaModal({ proyectoId, tarea, estadoInicial, onGuardar, onCerrar }: Props) {
     const [titulo, setTitulo] = useState(tarea?.titulo ?? '')
     const [descripcion, setDescripcion] = useState(tarea?.descripcion ?? '')
@@ -34,26 +37,28 @@ export default function TareaModal({ proyectoId, tarea, estadoInicial, onGuardar
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+            className="animar-velo fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
             onClick={onCerrar}
         >
             <div
-                className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+                className="animar-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900"
                 onClick={(e) => e.stopPropagation()}
             >
                 <h3 className="text-lg font-bold">{tarea ? 'Editar tarea' : 'Nueva tarea'}</h3>
 
-                <label className="mt-4 block text-xs font-semibold text-slate-500">Título</label>
+                <label className="mt-4 block text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    Título
+                </label>
                 <input
                     autoFocus
                     value={titulo}
                     onChange={(e) => setTitulo(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && guardar()}
                     placeholder="¿Qué hay que hacer?"
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                    className={CAMPO}
                 />
 
-                <label className="mt-3 block text-xs font-semibold text-slate-500">
+                <label className="mt-3 block text-xs font-semibold text-slate-500 dark:text-slate-400">
                     Descripción <span className="font-normal text-slate-400">(opcional)</span>
                 </label>
                 <textarea
@@ -61,16 +66,18 @@ export default function TareaModal({ proyectoId, tarea, estadoInicial, onGuardar
                     onChange={(e) => setDescripcion(e.target.value)}
                     rows={3}
                     placeholder="Detalles, enlaces, notas…"
-                    className="mt-1 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                    className={`${CAMPO} resize-none`}
                 />
 
-                <div className="mt-3 grid grid-cols-3 gap-3">
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500">Estado</label>
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            Estado
+                        </label>
                         <select
                             value={estado}
                             onChange={(e) => setEstado(e.target.value as Estado)}
-                            className="mt-1 w-full rounded-xl border border-slate-200 px-2 py-2 text-sm outline-none focus:border-indigo-400"
+                            className={CAMPO}
                         >
                             {ESTADOS.map((e) => (
                                 <option key={e.id} value={e.id}>
@@ -80,11 +87,13 @@ export default function TareaModal({ proyectoId, tarea, estadoInicial, onGuardar
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500">Prioridad</label>
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            Prioridad
+                        </label>
                         <select
                             value={prioridad}
                             onChange={(e) => setPrioridad(e.target.value as Prioridad)}
-                            className="mt-1 w-full rounded-xl border border-slate-200 px-2 py-2 text-sm outline-none focus:border-indigo-400"
+                            className={CAMPO}
                         >
                             <option value="alta">Alta</option>
                             <option value="media">Media</option>
@@ -92,12 +101,14 @@ export default function TareaModal({ proyectoId, tarea, estadoInicial, onGuardar
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-slate-500">Fecha límite</label>
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            Fecha límite
+                        </label>
                         <input
                             type="date"
                             value={fechaLimite}
                             onChange={(e) => setFechaLimite(e.target.value)}
-                            className="mt-1 w-full rounded-xl border border-slate-200 px-2 py-2 text-sm outline-none focus:border-indigo-400"
+                            className={CAMPO}
                         />
                     </div>
                 </div>
@@ -105,14 +116,14 @@ export default function TareaModal({ proyectoId, tarea, estadoInicial, onGuardar
                 <div className="mt-6 flex justify-end gap-2">
                     <button
                         onClick={onCerrar}
-                        className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100"
+                        className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                     >
                         Cancelar
                     </button>
                     <button
                         onClick={guardar}
                         disabled={!titulo.trim()}
-                        className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
+                        className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 active:scale-95 disabled:opacity-40"
                     >
                         Guardar
                     </button>
