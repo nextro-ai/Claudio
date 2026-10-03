@@ -26,7 +26,7 @@
     };
     menuBoton.addEventListener('click', () => abrir(menu.hidden, true));
     $$('a', menu).forEach(a => a.addEventListener('click', () => abrir(false)));
-    window.matchMedia('(min-width: 961px)').addEventListener('change', e => { if (e.matches) abrir(false); });
+    window.matchMedia('(min-width: 1181px)').addEventListener('change', e => { if (e.matches) abrir(false); });
     document.addEventListener('keydown', e => {
       if (menu.hidden) return;
       if (e.key === 'Escape') abrir(false, true);
