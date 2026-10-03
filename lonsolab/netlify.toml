@@ -1,0 +1,92 @@
+# Configuración de Netlify para lonsolab.com
+# El sitio es HTML estático: no hay build, se publica la carpeta tal cual.
+
+[build]
+  publish = "."
+  command = ""
+
+# ---------- Cabeceras de seguridad y caché ----------
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+# Los assets llevan hash de contenido sólo si los renombrás al cambiarlos.
+# Con 1 día de caché podés reemplazar un archivo y verlo al día siguiente
+# sin que nadie quede con la versión vieja demasiado tiempo.
+[[headers]]
+  for = "/assets/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/assets/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/assets/img/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+# ---------- Redirecciones ----------
+
+# URLs limpias: /maps lleva a /maps.html sin cambiar la barra de direcciones
+[[redirects]]
+  from = "/maps"
+  to = "/maps.html"
+  status = 200
+
+[[redirects]]
+  from = "/redes"
+  to = "/redes.html"
+  status = 200
+
+[[redirects]]
+  from = "/casos"
+  to = "/casos.html"
+  status = 200
+
+[[redirects]]
+  from = "/trabajos"
+  to = "/casos.html"
+  status = 301
+
+[[redirects]]
+  from = "/nosotros"
+  to = "/nosotros.html"
+  status = 200
+
+[[redirects]]
+  from = "/contacto"
+  to = "/contacto.html"
+  status = 200
+
+[[redirects]]
+  from = "/terminos"
+  to = "/terminos.html"
+  status = 200
+
+[[redirects]]
+  from = "/privacidad"
+  to = "/privacidad.html"
+  status = 200
+
+# Atajo directo a la oferta de entrada
+[[redirects]]
+  from = "/auditoria"
+  to = "/contacto.html#auditoria"
+  status = 301
+
+# Cualquier otra cosa cae en el 404 propio (Netlify usa 404.html automáticamente)
+
+# Versioned, locally hosted fonts.
+[[headers]]
+  for = "/assets/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
