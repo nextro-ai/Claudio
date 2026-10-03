@@ -156,53 +156,99 @@
     else ciclo();
   }
 
-  // ---------- La pila de herramientas: caos → orden ----------
-  const pila = $('.pila');
-  if (pila) {
+  // ---------- La pila de herramientas: caos → orden, en ciclo como el buscador ----------
+  const caja = $('.pila-caja');
+  if (caja) {
+    const pila = $('.pila', caja);
     const fichas = $$('.ficha', pila);
-    const boton = $('.pila-boton');
+    const botonesP = $$('.conmutador button', caja);
+    const pausaP = $('.pausa', caja);
+    const leyenda = $('.pila-estado', caja);
+    const textos = {
+      caos: 'Hacerlo solo: 14 herramientas y tareas para aprender, actualizar y sostener cada semana.',
+      orden: 'Con Lonso Lab: las 14 resueltas por un equipo que las usa todos los días.',
+    };
     const azar = semilla => { const x = Math.sin(semilla * 9301 + 49297) * 233280; return x - Math.floor(x); };
+    // Lleva cada ficha desde su lugar ordenado (el flujo normal) a una montaña apoyada en el piso de la caja.
     const calcular = () => {
       const ancho = pila.clientWidth, alto = pila.clientHeight;
-      // Montaña desordenada apoyada en el piso de la caja: capas cada vez más chicas.
       const capas = ancho > 520 ? [5, 4, 3, 2] : [4, 3, 3, 2, 2];
       let capa = 0, enCapa = 0, porCapa = capas[0], y = alto - 4;
       fichas.forEach((f, i) => {
         const w = f.offsetWidth, h = f.offsetHeight;
         if (enCapa >= porCapa) { capa++; enCapa = 0; porCapa = capas[Math.min(capa, capas.length - 1)]; y -= h * 0.78; }
-        const tramo = ancho * (0.98 - capa * 0.16);
+        const tramo = ancho * (0.96 - capa * 0.16);
         const inicio = (ancho - tramo) / 2;
-        const x = inicio + (tramo / Math.max(1, porCapa)) * (enCapa + 0.5) - w / 2 + (azar(i + 1) - 0.5) * 50;
-        const destinoX = Math.min(Math.max(0, x), ancho - w);
-        const destinoY = y - h - (azar(i + 7) * 10);
+        const x = inicio + (tramo / Math.max(1, porCapa)) * (enCapa + 0.5) - w / 2 + (azar(i + 1) - 0.5) * 40;
+        const destinoX = Math.min(Math.max(0, x), Math.max(0, ancho - w));
+        const destinoY = Math.max(0, y - h - azar(i + 7) * 10);
         f.style.setProperty('--px', (destinoX - f.offsetLeft).toFixed(1) + 'px');
         f.style.setProperty('--py', (destinoY - f.offsetTop).toFixed(1) + 'px');
-        f.style.setProperty('--pr', ((azar(i + 3) - 0.5) * 30).toFixed(1) + 'deg');
-        f.style.setProperty('--retraso', (i * 0.07).toFixed(2) + 's');
+        f.style.setProperty('--pr', ((azar(i + 3) - 0.5) * 28).toFixed(1) + 'deg');
         enCapa++;
       });
     };
-    if (!reducido.matches) {
-      pila.classList.add('esperando');
-      calcular();
-      alVer([pila], () => {
-        requestAnimationFrame(() => requestAnimationFrame(() => pila.classList.remove('esperando')));
-      }, { threshold: 0.3 });
-      let espera;
-      window.addEventListener('resize', () => { clearTimeout(espera); espera = setTimeout(calcular, 150); }, { passive: true });
+    const fijar = estado => {
+      pila.classList.remove('esperando');
+      caja.dataset.estado = estado;
+      botonesP.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.estado === estado)));
+      if (leyenda) leyenda.textContent = textos[estado];
+      if (estado === 'orden') {
+        fichas.forEach((f, i) => f.style.setProperty('--retraso', (i * 0.05).toFixed(2) + 's'));
+        pila.classList.add('ordenada');
+      } else {
+        calcular();
+        fichas.forEach((f, i) => f.style.setProperty('--retraso', (i * 0.04).toFixed(2) + 's'));
+        pila.classList.remove('ordenada');
+      }
+    };
+    let pausadoP = false, visibleP = false, arrancado = false, tP = [];
+    const limpiarP = () => { tP.forEach(clearTimeout); tP = []; };
+    const luegoP = (ms, fn) => tP.push(setTimeout(fn, ms));
+    const cicloP = () => {
+      limpiarP();
+      if (pausadoP || !visibleP) return;
+      if (!arrancado) {
+        arrancado = true;
+        calcular();
+        pila.classList.add('esperando');
+        void pila.offsetWidth;
+        requestAnimationFrame(() => requestAnimationFrame(() => fijar('caos')));
+      } else {
+        fijar('caos');
+      }
+      luegoP(3400, () => { fijar('orden'); luegoP(5600, cicloP); });
+    };
+    const detenerP = valor => {
+      pausadoP = valor;
+      pausaP.setAttribute('aria-pressed', String(valor));
+      $('span', pausaP).textContent = valor ? 'Reanudar animación' : 'Pausar animación';
+      $('.icono-pausa', pausaP).style.display = valor ? 'none' : '';
+      $('.icono-play', pausaP).style.display = valor ? '' : 'none';
+      if (valor) limpiarP(); else cicloP();
+    };
+    botonesP.forEach(b => b.addEventListener('click', () => { detenerP(true); arrancado = true; fijar(b.dataset.estado); }));
+    pausaP.addEventListener('click', () => detenerP(!pausadoP));
+    let espera;
+    window.addEventListener('resize', () => {
+      clearTimeout(espera);
+      espera = setTimeout(() => { if (caja.dataset.estado === 'caos') calcular(); }, 150);
+    }, { passive: true });
+    if (reducido.matches) {
+      fijar('orden');
+      pausaP.hidden = true;
     } else {
-      pila.classList.add('ordenada');
-    }
-    if (boton) {
-      if (reducido.matches) { boton.setAttribute('aria-pressed', 'true'); }
-      boton.addEventListener('click', () => {
-        const ordenada = !pila.classList.contains('ordenada');
-        if (ordenada) fichas.forEach((f, i) => f.style.setProperty('--retraso', (i * 0.035).toFixed(2) + 's'));
-        else calcular();
-        pila.classList.toggle('ordenada', ordenada);
-        boton.setAttribute('aria-pressed', String(ordenada));
-        $('span', boton).textContent = ordenada ? 'Volver a hacerlo solo' : 'Dejalo en nuestras manos';
+      pila.classList.add('esperando');
+      const listo = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+      listo.then(() => {
+        if ('IntersectionObserver' in window) {
+          new IntersectionObserver(([en]) => {
+            visibleP = en.isIntersecting;
+            if (!visibleP) limpiarP(); else if (!pausadoP && !tP.length) cicloP();
+          }, { threshold: 0.35 }).observe(pila);
+        } else { visibleP = true; cicloP(); }
       });
+      document.addEventListener('visibilitychange', () => { if (document.hidden) limpiarP(); else if (visibleP && !pausadoP) cicloP(); });
     }
   }
 
@@ -254,24 +300,53 @@
     videos.forEach(v => obs.observe(v));
   }
 
-  // ---------- Calculadora de combos (Maps + Redes con 15%) ----------
-  const maps = $('#plan-maps'), redes = $('#plan-redes'), combo = $('#combos');
-  if (maps && redes) {
+  // ---------- Armá tu pack: cuantos más servicios, más descuento ----------
+  // Promociones: Maps + Redes 15% mensual; un plan mensual + web, web 15%; los tres, 20% mensual y web 25%.
+  const PROMO = { dos: 0.15, webConUno: 0.15, packMensual: 0.20, packWeb: 0.25 };
+  const selMaps = $('#plan-maps'), selRedes = $('#plan-redes'), selWeb = $('#plan-web');
+  if (selMaps && selRedes && selWeb) {
     const nombre = s => s.options[s.selectedIndex].text.split(' — ')[0];
-    const actualizarCombo = () => {
-      const base = Number(maps.value) + Number(redes.value), final = Math.round(base * 0.85);
-      $('#combo-precio').textContent = pesos(final);
-      $('#combo-ahorro').textContent = 'Ahorrás ' + pesos(base - final) + ' por mes';
-      $('#combo-enlace').href = WA + encodeURIComponent(`Hola, me interesa el combo Maps ${nombre(maps)} + Redes ${nombre(redes)} a ${pesos(final)} ARS por mes (15% de descuento). ¿Cómo seguimos?`);
-    };
-    maps.addEventListener('change', actualizarCombo);
-    redes.addEventListener('change', actualizarCombo);
-    actualizarCombo();
+    const pct = x => Math.round(x * 100) + '%';
+    const escalones = $$('.escalera li');
+    const empujon = $('#combo-empujon');
+    const sumar = (sel, valor) => { sel.value = String(valor); actualizarPack(); sel.focus(); };
+    function actualizarPack() {
+      const m = Number(selMaps.value), r = Number(selRedes.value), w = Number(selWeb.value);
+      const mensuales = (m > 0) + (r > 0);
+      let dM = 0, dW = 0, nivel = 1;
+      if (mensuales === 2 && w) { dM = PROMO.packMensual; dW = PROMO.packWeb; nivel = 4; }
+      else if (mensuales === 1 && w) { dW = PROMO.webConUno; nivel = 3; }
+      else if (mensuales === 2) { dM = PROMO.dos; nivel = 2; }
+      const base = m + r, mes = Math.round(base * (1 - dM)), web = Math.round(w * (1 - dW));
+      $('#combo-precio').textContent = base ? pesos(mes) : '—';
+      $('#combo-antes').innerHTML = dM ? `<del>${pesos(base)}</del> · ${pct(dM)} menos` : (base ? 'Precio de lista' : 'Sin planes mensuales');
+      $('#combo-web').textContent = w ? pesos(web) : '—';
+      $('#combo-web-antes').innerHTML = dW ? `<del>${pesos(w)}</del> · ${pct(dW)} menos` : (w ? 'Precio de lista' : 'Sin web');
+      const ahM = base - mes, ahW = w - web;
+      $('#combo-ahorro').textContent = (ahM || ahW)
+        ? 'Ahorrás ' + [ahM ? pesos(ahM) + ' por mes' : '', ahW ? pesos(ahW) + ' en la web' : ''].filter(Boolean).join(' y ') + '.'
+        : 'Combiná servicios para empezar a ahorrar.';
+      escalones.forEach(li => li.classList.toggle('activo', Number(li.dataset.nivel) === nivel && (mensuales + (w > 0)) > 0));
+      // Empujón: qué sumar para subir un escalón y cuánto ahorrarías.
+      let texto = '', accion = null;
+      if (!m && !r && !w) texto = 'Elegí al menos un servicio para ver tu precio.';
+      else if (nivel === 4) texto = 'Tenés el máximo ahorro posible.';
+      else if (nivel === 2) { texto = `Sumá tu web y pasás a ${pct(PROMO.packMensual)} menos por mes. La web te sale ${pesos(450000 * (1 - PROMO.packWeb))}.`; accion = ['Sumar la web', () => sumar(selWeb, 450000)]; }
+      else if (nivel === 3) { const falta = m ? ['Redes', selRedes, 190000] : ['Google Maps', selMaps, 90000]; texto = `Sumá ${falta[0]} y llegás al pack completo: ${pct(PROMO.packMensual)} menos por mes y la web con ${pct(PROMO.packWeb)} de descuento.`; accion = ['Sumar ' + falta[0], () => sumar(falta[1], falta[2])]; }
+      else if (w) { texto = `Sumá un plan de Google Maps y tu web pasa a ${pesos(w * (1 - PROMO.webConUno))}.`; accion = ['Sumar Google Maps', () => sumar(selMaps, 90000)]; }
+      else if (m) { texto = `Sumá Redes y tenés ${pct(PROMO.dos)} menos en los dos, todos los meses.`; accion = ['Sumar Redes', () => sumar(selRedes, 190000)]; }
+      else { texto = `Sumá Google Maps y tenés ${pct(PROMO.dos)} menos en los dos, todos los meses.`; accion = ['Sumar Google Maps', () => sumar(selMaps, 90000)]; }
+      empujon.innerHTML = '';
+      const p = document.createElement('p'); p.textContent = texto; empujon.append(p);
+      empujon.classList.toggle('maximo', nivel === 4);
+      if (accion) { const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'boton boton-pin boton-chico'; bt.textContent = accion[0]; bt.addEventListener('click', accion[1]); empujon.append(bt); }
+      const partes = [m ? 'Google Maps ' + nombre(selMaps) : '', r ? 'Redes ' + nombre(selRedes) : '', w ? 'sitio web' : ''].filter(Boolean).join(', ');
+      const detalle = [base ? `por mes ${pesos(mes)} ARS${dM ? ` (${pct(dM)} de descuento)` : ''}` : '', w ? `la web ${pesos(web)}${dW ? ` (${pct(dW)} de descuento)` : ''}` : ''].filter(Boolean).join(' y ');
+      $('#combo-enlace').href = WA + encodeURIComponent(`Hola, me interesa este pack: ${partes || 'quiero asesoramiento'}. ${detalle ? detalle.charAt(0).toUpperCase() + detalle.slice(1) + '. ' : ''}¿Cómo seguimos?`);
+    }
+    [selMaps, selRedes, selWeb].forEach(s => s.addEventListener('change', actualizarPack));
+    actualizarPack();
   }
-  const abrirCombo = () => { if (combo && location.hash === '#combos') combo.open = true; };
-  abrirCombo();
-  window.addEventListener('hashchange', abrirCombo);
-  $$('a[href$="#combos"]').forEach(a => a.addEventListener('click', () => { if (combo) combo.open = true; }));
 
   // ---------- WhatsApp flotante: aparece después del primer pantallazo ----------
   const flotante = $('.wa-flotante');
