@@ -49,7 +49,7 @@
     }), opciones);
     elementos.forEach(el => obs.observe(el));
   };
-  alVer($$('.perdida, .pasos'), el => el.classList.add('en-vista'));
+  alVer($$('.perdida, .pasos, .desglose'), el => el.classList.add('en-vista'), { threshold: 0.3 });
 
   // ---------- Simulador de búsqueda en Google ----------
   const demo = $('.demo');
