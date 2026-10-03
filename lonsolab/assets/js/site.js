@@ -252,6 +252,27 @@
     }
   }
 
+  // ---------- Recorrido de un sitio: capítulos que desplazan la ventana ----------
+  $$('.recorrido').forEach(rec => {
+    const pantalla = $('.recorrido-pantalla', rec), img = $('img', pantalla), nota = $('.recorrido-nota', rec);
+    const botones = $$('.recorrido-capitulos button', rec);
+    const escala = () => img.clientHeight / Number(img.dataset.altoOriginal || img.naturalHeight || 1);
+    const marcar = b => { botones.forEach(x => x.setAttribute('aria-pressed', String(x === b))); if (nota) nota.textContent = b.dataset.nota; };
+    let porClic = false, t;
+    botones.forEach(b => b.addEventListener('click', () => {
+      porClic = true; clearTimeout(t); t = setTimeout(() => { porClic = false; }, 900);
+      pantalla.scrollTop = Number(b.dataset.y) * escala();
+      marcar(b);
+    }));
+    pantalla.addEventListener('scroll', () => {
+      if (porClic) return;
+      const y = pantalla.scrollTop / escala() + 120;
+      let actual = botones[0];
+      botones.forEach(b => { if (Number(b.dataset.y) <= y) actual = b; });
+      if (actual.getAttribute('aria-pressed') !== 'true') marcar(actual);
+    }, { passive: true });
+  });
+
   // ---------- Calculadora: cuánto cuesta tu tiempo ----------
   const calc = $('.calculadora');
   if (calc) {
@@ -266,10 +287,10 @@
       $('#costo-mensual').textContent = pesos(mensual);
       $('#horas-anuales').textContent = new Intl.NumberFormat('es-AR').format(h * 52);
       const tope = Math.max(mensual, REDES) * 1.05;
-      $('.barra-tuya i').style.setProperty('--ancho-barra', (mensual / tope * 100) + '%');
+      $('.barra-tuya i').style.setProperty('--escala', (mensual / tope).toFixed(4));
       $('.barra-tuya b').textContent = pesos(mensual);
-      $('.barra-maps i').style.setProperty('--ancho-barra', (MAPS / tope * 100) + '%');
-      $('.barra-redes i').style.setProperty('--ancho-barra', (REDES / tope * 100) + '%');
+      $('.barra-maps i').style.setProperty('--escala', (MAPS / tope).toFixed(4));
+      $('.barra-redes i').style.setProperty('--escala', (REDES / tope).toFixed(4));
       [horas, valor].forEach(pintarRango);
     };
     [horas, valor].forEach(r => r.addEventListener('input', actualizar));
@@ -300,52 +321,101 @@
     videos.forEach(v => obs.observe(v));
   }
 
-  // ---------- Armá tu pack: cuantos más servicios, más descuento ----------
+  // ---------- Armá tu pack: configurador con tarjetas, camino de ahorro y totales vivos ----------
   // Promociones: Maps + Redes 15% mensual; un plan mensual + web, web 15%; los tres, 20% mensual y web 25%.
   const PROMO = { dos: 0.15, webConUno: 0.15, packMensual: 0.20, packWeb: 0.25 };
-  const selMaps = $('#plan-maps'), selRedes = $('#plan-redes'), selWeb = $('#plan-web');
-  if (selMaps && selRedes && selWeb) {
-    const nombre = s => s.options[s.selectedIndex].text.split(' — ')[0];
+  const armador = $('.armador');
+  if (armador) {
+    const tarjetas = Object.fromEntries($$('.pack-servicio', armador).map(t => [t.dataset.servicio, t]));
+    const estado = {};
+    Object.entries(tarjetas).forEach(([k, t]) => { estado[k] = { activo: t.dataset.activo === 'true', nivel: 0 }; });
+    const niveles = k => $$('.pack-niveles button', tarjetas[k]);
+    const precio = k => estado[k].activo ? Number(niveles(k)[estado[k].nivel].dataset.precio) : 0;
     const pct = x => Math.round(x * 100) + '%';
-    const escalones = $$('.escalera li');
-    const empujon = $('#combo-empujon');
-    const sumar = (sel, valor) => { sel.value = String(valor); actualizarPack(); sel.focus(); };
-    function actualizarPack() {
-      const m = Number(selMaps.value), r = Number(selRedes.value), w = Number(selWeb.value);
-      const mensuales = (m > 0) + (r > 0);
+    const animar = (el, valor, prefijo = '') => {
+      const desde = Number(el.dataset.valor || valor);
+      el.dataset.valor = valor;
+      if (reducido.matches || desde === valor) { el.textContent = prefijo + pesos(valor); return; }
+      const t0 = performance.now(), dur = 550;
+      const paso = t => { const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+        el.textContent = prefijo + pesos(desde + (valor - desde) * e); if (p < 1) requestAnimationFrame(paso); };
+      requestAnimationFrame(paso);
+    };
+    const poner = (k, activo) => { estado[k].activo = activo; };
+    function render() {
+      const m = precio('maps'), r = precio('redes'), w = precio('web');
+      const mensuales = (m > 0) + (r > 0), total = mensuales + (w > 0);
       let dM = 0, dW = 0, nivel = 1;
       if (mensuales === 2 && w) { dM = PROMO.packMensual; dW = PROMO.packWeb; nivel = 4; }
       else if (mensuales === 1 && w) { dW = PROMO.webConUno; nivel = 3; }
       else if (mensuales === 2) { dM = PROMO.dos; nivel = 2; }
       const base = m + r, mes = Math.round(base * (1 - dM)), web = Math.round(w * (1 - dW));
-      $('#combo-precio').textContent = base ? pesos(mes) : '—';
-      $('#combo-antes').innerHTML = dM ? `<del>${pesos(base)}</del> · ${pct(dM)} menos` : (base ? 'Precio de lista' : 'Sin planes mensuales');
-      $('#combo-web').textContent = w ? pesos(web) : '—';
-      $('#combo-web-antes').innerHTML = dW ? `<del>${pesos(w)}</del> · ${pct(dW)} menos` : (w ? 'Precio de lista' : 'Sin web');
+      // tarjetas
+      Object.entries(tarjetas).forEach(([k, t]) => {
+        t.dataset.activo = String(estado[k].activo);
+        $('.pack-toggle', t).setAttribute('aria-pressed', String(estado[k].activo));
+        niveles(k).forEach((b, i) => b.setAttribute('aria-checked', String(estado[k].activo && i === estado[k].nivel)));
+      });
+      // camino
+      armador.dataset.nivel = total ? nivel : 0;
+      armador.style.setProperty('--paso', total ? nivel - 1 : 0);
+      $$('.camino-parada', armador).forEach(p => {
+        const n = Number(p.dataset.nivel);
+        p.classList.toggle('alcanzada', total > 0 && n <= nivel);
+        p.classList.toggle('actual', total > 0 && n === nivel);
+        p.setAttribute('aria-pressed', String(total > 0 && n === nivel));
+      });
+      // totales
+      const elMes = $('#combo-precio'), elWeb = $('#combo-web');
+      if (base) animar(elMes, mes); else { elMes.textContent = '—'; elMes.dataset.valor = 0; }
+      if (w) animar(elWeb, web); else { elWeb.textContent = '—'; elWeb.dataset.valor = 0; }
+      $('#combo-antes').innerHTML = dM ? `<del>${pesos(base)}</del> ${pct(dM)} menos` : (base ? 'Precio de lista' : 'Sin planes mensuales');
+      $('#combo-web-antes').innerHTML = dW ? `<del>${pesos(w)}</del> ${pct(dW)} menos` : (w ? 'Precio de lista' : 'Sin web');
       const ahM = base - mes, ahW = w - web;
-      $('#combo-ahorro').textContent = (ahM || ahW)
-        ? 'Ahorrás ' + [ahM ? pesos(ahM) + ' por mes' : '', ahW ? pesos(ahW) + ' en la web' : ''].filter(Boolean).join(' y ') + '.'
-        : 'Combiná servicios para empezar a ahorrar.';
-      escalones.forEach(li => li.classList.toggle('activo', Number(li.dataset.nivel) === nivel && (mensuales + (w > 0)) > 0));
-      // Empujón: qué sumar para subir un escalón y cuánto ahorrarías.
+      const elAh = $('#combo-ahorro-mes');
+      if (ahM) animar(elAh, ahM); else { elAh.textContent = ahW ? pesos(ahW) : '$0'; elAh.dataset.valor = ahW || 0; }
+      $('#combo-ahorro').textContent = ahM ? (ahW ? `por mes, y ${pesos(ahW)} en la web` : 'por mes') : (ahW ? 'en la web' : 'Combiná servicios para ahorrar');
+      armador.classList.toggle('sin-ahorro', !(ahM || ahW));
+      // empujón: qué sumar para subir de escalón
+      const emp = $('#combo-empujon');
       let texto = '', accion = null;
-      if (!m && !r && !w) texto = 'Elegí al menos un servicio para ver tu precio.';
-      else if (nivel === 4) texto = 'Tenés el máximo ahorro posible.';
-      else if (nivel === 2) { texto = `Sumá tu web y pasás a ${pct(PROMO.packMensual)} menos por mes. La web te sale ${pesos(450000 * (1 - PROMO.packWeb))}.`; accion = ['Sumar la web', () => sumar(selWeb, 450000)]; }
-      else if (nivel === 3) { const falta = m ? ['Redes', selRedes, 190000] : ['Google Maps', selMaps, 90000]; texto = `Sumá ${falta[0]} y llegás al pack completo: ${pct(PROMO.packMensual)} menos por mes y la web con ${pct(PROMO.packWeb)} de descuento.`; accion = ['Sumar ' + falta[0], () => sumar(falta[1], falta[2])]; }
-      else if (w) { texto = `Sumá un plan de Google Maps y tu web pasa a ${pesos(w * (1 - PROMO.webConUno))}.`; accion = ['Sumar Google Maps', () => sumar(selMaps, 90000)]; }
-      else if (m) { texto = `Sumá Redes y tenés ${pct(PROMO.dos)} menos en los dos, todos los meses.`; accion = ['Sumar Redes', () => sumar(selRedes, 190000)]; }
-      else { texto = `Sumá Google Maps y tenés ${pct(PROMO.dos)} menos en los dos, todos los meses.`; accion = ['Sumar Google Maps', () => sumar(selMaps, 90000)]; }
-      empujon.innerHTML = '';
-      const p = document.createElement('p'); p.textContent = texto; empujon.append(p);
-      empujon.classList.toggle('maximo', nivel === 4);
-      if (accion) { const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'boton boton-pin boton-chico'; bt.textContent = accion[0]; bt.addEventListener('click', accion[1]); empujon.append(bt); }
-      const partes = [m ? 'Google Maps ' + nombre(selMaps) : '', r ? 'Redes ' + nombre(selRedes) : '', w ? 'sitio web' : ''].filter(Boolean).join(', ');
+      if (!total) texto = 'Tocá al menos un servicio para ver tu precio.';
+      else if (nivel === 4) texto = 'Llegaste al pack completo: el máximo ahorro posible.';
+      else if (nivel === 2) { texto = `Sumá tu web y pasás a ${pct(PROMO.packMensual)} menos por mes. La web te sale ${pesos(Number(niveles('web')[0].dataset.precio) * (1 - PROMO.packWeb))}.`; accion = ['Sumar la web', () => poner('web', true)]; }
+      else if (nivel === 3) { const falta = m ? ['redes', 'Redes'] : ['maps', 'Google Maps']; texto = `Sumá ${falta[1]} y llegás al pack completo: ${pct(PROMO.packMensual)} menos por mes y la web con ${pct(PROMO.packWeb)} de descuento.`; accion = ['Sumar ' + falta[1], () => poner(falta[0], true)]; }
+      else if (w) { texto = `Sumá un plan de Google Maps y tu web pasa a ${pesos(w * (1 - PROMO.webConUno))}.`; accion = ['Sumar Google Maps', () => poner('maps', true)]; }
+      else if (m) { texto = `Sumá Redes y tenés ${pct(PROMO.dos)} menos en los dos, todos los meses.`; accion = ['Sumar Redes', () => poner('redes', true)]; }
+      else { texto = `Sumá Google Maps y tenés ${pct(PROMO.dos)} menos en los dos, todos los meses.`; accion = ['Sumar Google Maps', () => poner('maps', true)]; }
+      emp.innerHTML = '';
+      const p = document.createElement('p'); p.textContent = texto; emp.append(p);
+      emp.classList.toggle('maximo', nivel === 4 && total > 0);
+      if (accion) { const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'boton boton-tinta boton-chico'; bt.textContent = accion[0]; bt.addEventListener('click', () => { accion[1](); render(); }); emp.append(bt); }
+      // WhatsApp con el detalle
+      const nombreNivel = k => niveles(k)[estado[k].nivel].dataset.nombre;
+      const partes = [m ? 'Google Maps ' + nombreNivel('maps') : '', r ? 'Redes ' + nombreNivel('redes') : '', w ? 'sitio web' : ''].filter(Boolean).join(', ');
       const detalle = [base ? `por mes ${pesos(mes)} ARS${dM ? ` (${pct(dM)} de descuento)` : ''}` : '', w ? `la web ${pesos(web)}${dW ? ` (${pct(dW)} de descuento)` : ''}` : ''].filter(Boolean).join(' y ');
       $('#combo-enlace').href = WA + encodeURIComponent(`Hola, me interesa este pack: ${partes || 'quiero asesoramiento'}. ${detalle ? detalle.charAt(0).toUpperCase() + detalle.slice(1) + '. ' : ''}¿Cómo seguimos?`);
     }
-    [selMaps, selRedes, selWeb].forEach(s => s.addEventListener('change', actualizarPack));
-    actualizarPack();
+    Object.entries(tarjetas).forEach(([k, t]) => {
+      $('.pack-toggle', t).addEventListener('click', () => { poner(k, !estado[k].activo); render(); });
+      niveles(k).forEach((b, i) => b.addEventListener('click', () => { estado[k].nivel = i; poner(k, true); render(); }));
+      $('.pack-niveles', t).addEventListener('keydown', e => {
+        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+        e.preventDefault();
+        const n = niveles(k).length, d = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 1;
+        estado[k].nivel = (estado[k].nivel + d + n) % n; poner(k, true); render(); niveles(k)[estado[k].nivel].focus();
+      });
+    });
+    // Tocar un escalón arma esa combinación.
+    const combos = { 1: { maps: true, redes: false, web: false }, 2: { maps: true, redes: true, web: false }, 3: { maps: true, redes: false, web: true }, 4: { maps: true, redes: true, web: true } };
+    $$('.camino-parada', armador).forEach(p => p.addEventListener('click', () => {
+      Object.entries(combos[p.dataset.nivel]).forEach(([k, v]) => poner(k, v)); render();
+    }));
+    const pista = $('.camino-pista', armador);
+    const medirPista = () => armador.style.setProperty('--largo-pista', pista.clientWidth + 'px');
+    if ('ResizeObserver' in window) new ResizeObserver(medirPista).observe(pista);
+    medirPista();
+    render();
   }
 
   // ---------- WhatsApp flotante: aparece después del primer pantallazo ----------
